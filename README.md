@@ -3,6 +3,10 @@
 Picks somewhere to eat without making you type anything. You tap a few tiles, it narrows
 down real restaurants around you, and shows the winner on a map with the walking route.
 
+<p align="center">
+  <img src="docs/demo.gif" width="380" alt="Tapping through the quiz: questions narrow the field, then the pick appears on a map with the walking route and a photo" />
+</p>
+
 The point of the project is that **the quiz is built from reality, not hard-coded**. Before
 it asks anything it looks up what's actually nearby, then only offers options that have
 places behind them. If nothing is a 5-minute walk away, it never offers "5 min".
