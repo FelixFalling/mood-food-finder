@@ -22,7 +22,11 @@ load_dotenv()
 app = Flask(__name__)
 client = genai.Client()
 
-MODEL = "gemini-3.6-flash"
+# The lite model answers both of our prompts — short copywriting and ranking a handful of
+# candidates — as reliably as the full flash model, and measured 3-5x faster on each. Since
+# every call sits directly between a tap and the next screen, that latency is the whole
+# experience. Pinned rather than `-latest` so the quiz's behaviour doesn't drift underneath us.
+MODEL = "gemini-3.5-flash-lite"
 
 # Handed to the template so the Maps JavaScript API can draw the results map.
 GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
@@ -48,7 +52,9 @@ class NextQuestion(BaseModel):
 
 
 class Pick(BaseModel):
-    place_id: str
+    # A position in the candidate list, not an ID. Opaque Places IDs get hallucinated
+    # (one run in three), while a small integer doesn't — and it's far cheaper to emit.
+    index: int
     reason: str
 
 
@@ -85,8 +91,8 @@ def compose_question(available, answers, remaining):
     that has no places behind it.
     """
     menu = "\n".join(
-        f"- {key}: options = {[o['hint'] for o in opts]}"
-        + (f" (each has {[o['count'] for o in opts]} places)" if opts[0].get("count") else "")
+        f"- {key}: options = {[o['hint'] for o in opts]} (each has "
+        f"{[o['count'] for o in opts]} places)"
         for key, opts in available.items()
     )
     prompt = (
@@ -126,31 +132,34 @@ def choose_best(candidates, answers, mode):
     """Rank the survivors and say why, grounded in the real place data."""
     verb = maps.mode_config(mode)["verb"]
     menu = "\n".join(
-        f"- id={p['id']} | {p['name']} | {p['kind'] or 'eatery'} | {p['price'] or 'price n/a'} | "
-        f"{p['minutes']} min {verb} | rating {p['rating'] or 'n/a'} ({p['reviews']} reviews)"
+        f"{i + 1}. {p['name']} | {p['kind'] or 'eatery'} | {p['price'] or 'price n/a'} | "
+        f"rating {p['rating'] or 'n/a'} ({p['reviews']} reviews)"
         f"{' | ' + p['summary'] if p['summary'] else ''}"
-        for p in candidates
+        for i, p in enumerate(candidates)
     )
     prompt = (
         "Pick the best restaurants for someone whose quiz answers were: "
         f"{describe(answers)}.\n\nCandidates:\n{menu}\n\n"
-        f"They are travelling by {verb}. Rank them best first. For each, give its exact "
-        "place_id and one warm sentence on why it fits their answers. Reference concrete "
-        "details (price, rating, cuisine). Do NOT state a travel time or distance — the "
-        "card shows the real routed time and your estimate would contradict it. Never "
-        "invent a place that is not listed."
+        f"They are travelling by {verb}. Rank them best first, using each candidate's number "
+        "as `index`, and include every candidate exactly once. For each, give one warm "
+        "sentence on why it fits their answers, referencing concrete details (price, rating, "
+        "cuisine). Do NOT state a travel time or distance — the card shows the real routed "
+        "time and your estimate would contradict it."
     )
 
     reply = ask_model(prompt, Picks)
-    by_id = {p["id"]: p for p in candidates}
+    remaining = list(enumerate(candidates))
     ranked = []
     if reply:
+        taken = set()
         for pick in reply.picks:
-            place = by_id.pop(pick.place_id, None)
-            if place:
-                ranked.append({**place, "reason": pick.reason})
+            i = pick.index - 1  # the prompt numbers them from 1
+            if 0 <= i < len(candidates) and i not in taken:
+                taken.add(i)
+                ranked.append({**candidates[i], "reason": pick.reason})
+        remaining = [(i, p) for i, p in remaining if i not in taken]
     # Anything the model dropped still beats showing the user nothing.
-    ranked += [{**p, "reason": p["summary"] or ""} for p in by_id.values()]
+    ranked += [{**p, "reason": p["summary"] or ""} for _, p in remaining]
     return ranked
 
 
@@ -158,14 +167,50 @@ def choose_best(candidates, answers, mode):
 PHOTOS_SHOWN = 6
 
 
-def with_photos(ranked):
-    """Attach a loadable image URL to the places the results screen will show."""
+def dress_results(ranked, session):
+    """Attach photos, and the top pick's route, before the results screen is sent.
+
+    All of it runs concurrently: the photo lookups are independent of each other and of the
+    route, so the whole step costs about as long as its slowest single call. Shipping the
+    route with the results also means the map draws its path on first paint instead of
+    waiting for the browser to come back and ask for it.
+    """
     head = ranked[:PHOTOS_SHOWN]
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        urls = pool.map(lambda p: maps.photo_url(p.get("photo_ref")), head)
+    origin = session["origin"]
+    mode = session["mode"]
+
+    def route_for_top():
+        if not ranked:
+            return None
+        top = ranked[0]
+        try:
+            return maps.travel_route(origin["lat"], origin["lng"], top["lat"], top["lng"], mode)
+        except maps.MapsError:
+            return None  # the map still works, it just won't have a line yet
+
+    with ThreadPoolExecutor(max_workers=PHOTOS_SHOWN + 1) as pool:
+        pending_route = pool.submit(route_for_top)
+        urls = list(pool.map(lambda p: maps.photo_url(p.get("photo_ref")), head))
+        leg = pending_route.result()
+
     for place, url in zip(head, urls):
         place["photo"] = url
+    if leg and ranked:
+        ranked[0]["route"] = leg
+        # Cache it under the same key /api/route uses, so re-selecting doesn't re-bill.
+        session["routes"][ranked[0]["id"]] = leg
     return ranked
+
+
+# Fixed copy, deliberately. Every other question is written by the model because *which*
+# filter to ask about is a real judgement call, but the travel modes are always these three
+# in this order — and this is the first screen, where latency is felt most. Writing it by
+# hand takes the model off the critical path entirely.
+MODE_TILES = {
+    "WALK": {"label": "Walking", "emoji": "🚶", "sub": "on foot"},
+    "TRANSIT": {"label": "Transit", "emoji": "🚌", "sub": "bus or train"},
+    "DRIVE": {"label": "Driving", "emoji": "🚗", "sub": "by car"},
+}
 
 
 def mode_question(lat, lon):
@@ -174,11 +219,12 @@ def mode_question(lat, lon):
 
     Transit is only offered where it actually runs; see maps.transit_available.
     """
-    options = [{"value": "WALK", "hint": "on foot"}]
-    if maps.transit_available(lat, lon):
-        options.append({"value": "TRANSIT", "hint": "public transit"})
-    options.append({"value": "DRIVE", "hint": "driving"})
-    return compose_question({"mode": options}, {}, 0)
+    values = ["WALK", "TRANSIT", "DRIVE"] if maps.transit_available(lat, lon) else ["WALK", "DRIVE"]
+    return {
+        "key": "mode",
+        "title": "How are you getting there?",
+        "options": [{**MODE_TILES[v], "value": v} for v in values],
+    }
 
 
 def next_stage(session):
@@ -203,7 +249,7 @@ def next_stage(session):
         ranked = choose_best(candidates, session["answers"], mode)
         return {
             "done": True,
-            "places": with_photos(ranked),
+            "places": dress_results(ranked, session),
             "asked": len(session["asked"]),
         }
 

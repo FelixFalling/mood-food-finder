@@ -214,14 +214,16 @@
       return new Promise((resolve) => {
         if (!navigator.geolocation) return resolve({});
         // Don't strand the user on a permission prompt they never answer.
-        const timer = setTimeout(() => resolve({}), 8000);
+        const timer = setTimeout(() => resolve({}), 4000);
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             clearTimeout(timer);
             resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
           },
           () => { clearTimeout(timer); resolve({}); },
-          { timeout: 8000 }
+          // A fix from the last few minutes is plenty precise for "what's near me", and
+          // accepting one avoids a fresh lookup that can take seconds on a cold GPS.
+          { timeout: 4000, maximumAge: 300000 }
         );
       });
     }
@@ -435,8 +437,10 @@
       if (!map || !p || !p.id) return;
 
       try {
-        const leg = await post('/api/route', { session, place_id: p.id });
+        // The top pick's route ships with the results, so its path draws immediately.
+        const leg = p.route || await post('/api/route', { session, place_id: p.id });
         if (!leg || !leg.polyline || places[pickIndex] !== p) return;
+        p.route = leg;
 
         const path = google.maps.geometry.encoding.decodePath(leg.polyline);
         if (routeLine) routeLine.setMap(null);

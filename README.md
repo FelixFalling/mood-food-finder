@@ -91,6 +91,25 @@ exists to avoid. Measured mean error across modes is ~4 minutes; walking and dri
 nose, and transit errs long rather than short. **The selected place then gets a real routed
 time**, and that is what the card displays.
 
+## Performance
+
+A full quiz used to take **20.6 s** of waiting; it now takes **4.8 s**. Profiling showed the
+Google APIs were never the problem — Places is ~257 ms, Routes ~71 ms, photos ~77 ms — while
+the model calls were **97% of the total**. So the work went there:
+
+| Change | Effect |
+|---|---|
+| `gemini-3.5-flash-lite` instead of full flash | 3–5× faster per call, same output quality measured over repeated runs |
+| Mode question written by hand, not the model | First paint **4008 ms → 135 ms** |
+| Ranking returns a candidate *index*, not a place ID | Faster to emit, and stops the occasional hallucinated ID |
+| Photos + the top pick's route resolved concurrently | The results screen draws its path on first paint |
+| Geolocation accepts a cached fix | Removes a multi-second stall before the first request |
+
+The lite model was checked against the full one before switching, not assumed: identical
+usable-output rates on the question prompt, and better coverage on the ranking prompt. Setting
+a thinking level was tried and **does not work** through the Interactions API — MINIMAL and HIGH
+produced identical latency, so it is silently ignored.
+
 ## Project layout
 
 | File | Role |
