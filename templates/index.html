@@ -22,120 +22,145 @@
       color: var(--text);
       min-height: 100vh;
     }
-    .wrap { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
-    header { text-align: center; margin-bottom: 32px; }
-    h1 { font-size: 2.2rem; margin: 0 0 6px; letter-spacing: -0.5px; }
-    header p { color: var(--muted); margin: 0; }
-    .group { margin-bottom: 26px; }
-    .group h2 {
-      font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.5px;
-      color: var(--muted); margin: 0 0 12px; font-weight: 600;
+    .wrap {
+      max-width: 640px; margin: 0 auto; padding: 24px 20px 40px;
+      min-height: 100dvh;
+      display: flex; flex-direction: column; justify-content: center;
     }
-    .opts { display: flex; flex-wrap: wrap; gap: 10px; }
-    .chip {
-      border: 1px solid var(--line);
-      background: var(--card);
-      color: var(--text);
-      padding: 11px 18px;
-      border-radius: 999px;
-      font-size: 0.95rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      user-select: none;
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      min-height: 34px; margin-bottom: 40px;
     }
-    .chip:hover { border-color: var(--accent); }
-    .chip.active {
+    .dots { display: flex; gap: 8px; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 999px;
+      background: var(--line); transition: background 0.2s;
+    }
+    .dot.on { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+    .back {
+      background: none; border: none; padding: 6px 4px;
+      color: var(--muted); font-size: 0.9rem; font-family: inherit; cursor: pointer;
+    }
+    .back:hover { color: var(--text); }
+    .back[hidden] { display: none; }
+
+    h2.q {
+      font-size: 1.9rem; line-height: 1.2; letter-spacing: -0.5px;
+      margin: 0 0 28px; text-align: center;
+    }
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    .tile {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; min-height: 110px; padding: 14px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+      color: var(--text); font-family: inherit; font-size: 1.05rem; font-weight: 600;
+      cursor: pointer; transition: border-color 0.15s, transform 0.1s;
+    }
+    .tile:hover, .tile:focus-visible { border-color: var(--accent); outline: none; }
+    .tile:active { transform: scale(0.97); }
+    .tile .emoji { font-size: 1.8rem; line-height: 1; }
+    .tile .sub { font-size: 0.8rem; font-weight: 400; color: var(--muted); }
+    .tile.picked {
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      border-color: transparent;
-      color: #1a1310;
-      font-weight: 600;
+      border-color: transparent; color: #1a1310;
     }
-    .go {
-      display: block; width: 100%; margin-top: 14px;
-      padding: 16px; border: none; border-radius: 14px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: #1a1310; font-size: 1.1rem; font-weight: 700;
-      cursor: pointer; transition: transform 0.1s, opacity 0.2s;
-    }
-    .go:hover { transform: translateY(-1px); }
-    .go:disabled { opacity: 0.5; cursor: default; transform: none; }
-    #results { margin-top: 34px; }
-    .blurb { color: var(--muted); white-space: pre-wrap; line-height: 1.6; margin-bottom: 20px; }
-    .place {
-      display: flex; justify-content: space-between; align-items: center;
+    .tile.picked .sub { color: #1a1310; }
+
+    .card {
       background: var(--card); border: 1px solid var(--line);
-      border-radius: 12px; padding: 15px 18px; margin-bottom: 10px;
-      text-decoration: none; color: var(--text);
-      transition: border-color 0.15s;
+      border-radius: 18px; padding: 26px 22px; text-align: center;
     }
-    .place:hover { border-color: var(--accent); }
-    .place .name { font-weight: 600; }
-    .place .go-arrow { color: var(--accent); font-size: 1.3rem; }
+    .card .name { display: block; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.4px; }
+    .card .maps {
+      display: inline-block; margin-top: 14px;
+      color: var(--accent); text-decoration: none; font-weight: 600;
+    }
+    .card .maps:hover { text-decoration: underline; }
+    .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+    .btn {
+      padding: 15px; border: none; border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #1a1310; font-family: inherit; font-size: 1.05rem; font-weight: 700;
+      cursor: pointer; transition: transform 0.1s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.ghost {
+      background: none; border: 1px solid var(--line);
+      color: var(--muted); font-weight: 600;
+    }
+    .btn.ghost:hover { border-color: var(--accent); color: var(--text); }
+
+    .blurb { color: var(--muted); white-space: pre-wrap; line-height: 1.6; margin: 14px 0 0; text-align: left; }
     .status { text-align: center; color: var(--muted); padding: 20px; }
     .err { color: #ff8f7a; }
-    .loc { text-align: center; font-size: 0.82rem; color: var(--muted); margin-top: 8px; }
+    .loc { text-align: center; font-size: 0.82rem; color: var(--muted); margin-top: 28px; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    #stage { animation: fadeUp 0.18s ease-out; }
+    @media (prefers-reduced-motion: reduce) {
+      #stage { animation: none; }
+      .tile, .btn { transition: none; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <h1>🍽️ Mood Food Finder</h1>
-      <p>No typing. Just tap your vibe and go.</p>
-    </header>
-
-    <div class="group" data-key="mood">
-      <h2>What's the mood?</h2>
-      <div class="opts">
-        <div class="chip">Cozy</div>
-        <div class="chip">Adventurous</div>
-        <div class="chip">Celebratory</div>
-        <div class="chip">Comfort</div>
-        <div class="chip">Healthy</div>
-        <div class="chip">Indulgent</div>
-      </div>
-    </div>
-
-    <div class="group" data-key="walk">
-      <h2>How far will you walk?</h2>
-      <div class="opts">
-        <div class="chip">5</div>
-        <div class="chip">10</div>
-        <div class="chip">15</div>
-        <div class="chip">30</div>
-      </div>
-    </div>
-
-    <div class="group" data-key="budget">
-      <h2>Budget</h2>
-      <div class="opts">
-        <div class="chip">$</div>
-        <div class="chip">$$</div>
-        <div class="chip">$$$</div>
-        <div class="chip">$$$$</div>
-      </div>
-    </div>
-
-    <div class="group" data-key="food">
-      <h2>Food type</h2>
-      <div class="opts">
-        <div class="chip">Italian</div>
-        <div class="chip">Asian</div>
-        <div class="chip">Mexican</div>
-        <div class="chip">American</div>
-        <div class="chip">Cafe</div>
-        <div class="chip">Surprise me</div>
-      </div>
-    </div>
-
-    <button class="go" id="go">Find my spot →</button>
+    <div id="stage"></div>
     <div class="loc" id="loc">📍 Using your current location</div>
-
-    <div id="results"></div>
   </div>
 
   <script>
+    const STEPS = [
+      { key: 'mood', title: "What's the mood?", options: [
+          { label: 'Cozy', emoji: '🕯️' },
+          { label: 'Adventurous', emoji: '🌶️' },
+          { label: 'Celebratory', emoji: '🥂' },
+          { label: 'Comfort', emoji: '🍲' },
+          { label: 'Healthy', emoji: '🥗' },
+          { label: 'Indulgent', emoji: '🧁' },
+        ] },
+      { key: 'food', title: 'What are you craving?', options: [
+          { label: 'Mexican', emoji: '🌮' },
+          { label: 'Italian', emoji: '🍝' },
+          { label: 'Chinese', emoji: '🥡' },
+          { label: 'Japanese', emoji: '🍣' },
+          { label: 'American', emoji: '🍔' },
+          { label: 'Thai', emoji: '🍜' },
+          { label: 'Indian', emoji: '🍛' },
+          { label: 'Cafe', emoji: '☕' },
+          { label: 'Surprise me', emoji: '🎲' },
+        ] },
+      // `label` stays a bare number — the server writes "a {walk}-minute walk".
+      { key: 'walk', title: 'How far will you walk?', options: [
+          { label: '5', emoji: '🚶', sub: '5 min' },
+          { label: '10', emoji: '🚶', sub: '10 min' },
+          { label: '15', emoji: '🥾', sub: '15 min' },
+          { label: '30', emoji: '🗺️', sub: '30 min' },
+        ] },
+      { key: 'budget', title: "What's the budget?", options: [
+          { label: '$', emoji: '🪙', sub: 'Cheap eats' },
+          { label: '$$', emoji: '💵', sub: 'Casual' },
+          { label: '$$$', emoji: '💳', sub: 'Nice out' },
+          { label: '$$$$', emoji: '💎', sub: 'Special' },
+        ] },
+    ];
+
     const selections = {};
     let coords = { latitude: null, longitude: null };
+    let step = 0;
+    let places = [];
+    let pickIndex = 0;
+    let blurb = '';
+
+    const stage = document.getElementById('stage');
+    const locEl = document.getElementById('loc');
 
     // Grab geolocation up front (falls back to server default if denied).
     if (navigator.geolocation) {
@@ -143,37 +168,81 @@
         (pos) => {
           coords.latitude = pos.coords.latitude;
           coords.longitude = pos.coords.longitude;
-          document.getElementById('loc').textContent = '📍 Using your current location';
+          locEl.textContent = '📍 Using your current location';
         },
         () => {
-          document.getElementById('loc').textContent = '📍 Location off — using a default area';
+          locEl.textContent = '📍 Location off — using a default area';
         }
       );
     }
 
-    // Single-select chips per group.
-    document.querySelectorAll('.group').forEach((group) => {
-      const key = group.dataset.key;
-      group.querySelectorAll('.chip').forEach((chip) => {
-        chip.addEventListener('click', () => {
-          const wasActive = chip.classList.contains('active');
-          group.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
-          if (!wasActive) {
-            chip.classList.add('active');
-            selections[key] = chip.textContent.trim();
-          } else {
-            delete selections[key];
-          }
-        });
+    function renderStep() {
+      const s = STEPS[step];
+      const dots = STEPS.map((_, i) => '<div class="dot' + (i <= step ? ' on' : '') + '"></div>').join('');
+      const tiles = s.options.map((o, i) =>
+        '<button class="tile" data-i="' + i + '">' +
+          (o.emoji ? '<span class="emoji">' + o.emoji + '</span>' : '') +
+          '<span>' + escapeHtml(o.sub || o.label) + '</span>' +
+        '</button>'
+      ).join('');
+
+      stage.innerHTML =
+        '<div class="topbar"><div class="dots">' + dots + '</div>' +
+        '<button class="back"' + (step === 0 ? ' hidden' : '') + '>← Back</button></div>' +
+        '<h2 class="q">' + escapeHtml(s.title) + '</h2>' +
+        '<div class="tiles">' + tiles + '</div>';
+      restage();
+      locEl.hidden = false;
+
+      const back = stage.querySelector('.back');
+      if (back) back.addEventListener('click', goBack);
+
+      stage.querySelectorAll('.tile').forEach((tile) => {
+        tile.addEventListener('click', () => pick(tile));
       });
+    }
+
+    function pick(tile) {
+      const s = STEPS[step];
+      const opt = s.options[Number(tile.dataset.i)];
+      selections[s.key] = opt.label;
+      stage.querySelectorAll('.tile').forEach((t) => t.classList.remove('picked'));
+      tile.classList.add('picked');
+      stage.querySelectorAll('.tile').forEach((t) => (t.disabled = true));
+      setTimeout(() => {
+        if (step < STEPS.length - 1) {
+          step += 1;
+          renderStep();
+        } else {
+          submit();
+        }
+      }, 140);
+    }
+
+    function goBack() {
+      if (step === 0) return;
+      step -= 1;
+      delete selections[STEPS[step].key];
+      renderStep();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const tiles = stage.querySelectorAll('.tile');
+      if (e.key === 'Escape' || e.key === 'Backspace') {
+        const back = stage.querySelector('.back');
+        if (back && !back.hidden) { e.preventDefault(); goBack(); }
+        return;
+      }
+      if (/^[1-9]$/.test(e.key) && tiles.length) {
+        const t = tiles[Number(e.key) - 1];
+        if (t && !t.disabled) pick(t);
+      }
     });
 
-    const go = document.getElementById('go');
-    const results = document.getElementById('results');
-
-    go.addEventListener('click', async () => {
-      go.disabled = true;
-      results.innerHTML = '<div class="status">Sniffing out the best spots… 🍜</div>';
+    async function submit() {
+      stage.innerHTML = '<div class="status">Sniffing out the best spots… 🍜</div>';
+      restage();
+      locEl.hidden = true;
 
       try {
         const res = await fetch('/api/recommend', {
@@ -184,30 +253,82 @@
         const data = await res.json();
 
         if (data.error) {
-          results.innerHTML = '<div class="status err">Hmm: ' + data.error + '</div>';
+          showMessage('Hmm: ' + data.error, true);
+          return;
+        }
+
+        places = data.places || [];
+        blurb = data.text || '';
+        pickIndex = 0;
+
+        if (!places.length && !blurb) {
+          showMessage('No matches — try a different combo.');
         } else {
-          let html = '';
-          if (data.text) html += '<div class="blurb">' + escapeHtml(data.text) + '</div>';
-          (data.places || []).forEach((p) => {
-            html += '<a class="place" href="' + p.url + '" target="_blank" rel="noopener">' +
-                    '<span class="name">' + escapeHtml(p.name) + '</span>' +
-                    '<span class="go-arrow">›</span></a>';
-          });
-          if (!html) html = '<div class="status">No matches — try a different combo.</div>';
-          results.innerHTML = html;
+          renderPick();
         }
       } catch (e) {
-        results.innerHTML = '<div class="status err">Something went wrong. Is the server running?</div>';
-      } finally {
-        go.disabled = false;
+        showMessage('Something went wrong. Is the server running?', true);
       }
-    });
+    }
+
+    function renderPick() {
+      const p = places[pickIndex];
+      // Per-place copy only — `blurb` names every option, which would defeat the one-at-a-time point.
+      const copy = p ? p.reason : blurb;
+      let html = '<div class="card">';
+      if (p) html += '<span class="name">' + escapeHtml(p.name) + '</span>';
+      if (copy) html += '<p class="blurb">' + escapeHtml(copy) + '</p>';
+      html += '<a class="maps" target="_blank" rel="noopener">Open in Maps ›</a></div>';
+      html += '<div class="actions">';
+      if (places.length > 1) html += '<button class="btn" id="another">Show me another →</button>';
+      html += '<button class="btn ghost" id="restart">Start over</button></div>';
+
+      stage.innerHTML = html;
+      restage();
+
+      // Set href via the DOM so a hostile URL can't break out of the attribute.
+      const maps = stage.querySelector('.maps');
+      if (p && p.url) maps.href = p.url;
+      else maps.remove();
+
+      const another = document.getElementById('another');
+      if (another) another.addEventListener('click', () => {
+        pickIndex = (pickIndex + 1) % places.length;
+        renderPick();
+      });
+      document.getElementById('restart').addEventListener('click', restart);
+    }
+
+    function showMessage(msg, isErr) {
+      stage.innerHTML = '<div class="status' + (isErr ? ' err' : '') + '">' + escapeHtml(msg) + '</div>' +
+        '<div class="actions"><button class="btn" id="restart">Start over</button></div>';
+      restage();
+      document.getElementById('restart').addEventListener('click', restart);
+    }
+
+    function restart() {
+      STEPS.forEach((s) => delete selections[s.key]);
+      places = [];
+      blurb = '';
+      pickIndex = 0;
+      step = 0;
+      renderStep();
+    }
+
+    // Retrigger the fade-up animation on each render.
+    function restage() {
+      stage.style.animation = 'none';
+      void stage.offsetWidth;
+      stage.style.animation = '';
+    }
 
     function escapeHtml(s) {
       const d = document.createElement('div');
       d.textContent = s;
       return d.innerHTML;
     }
+
+    renderStep();
   </script>
 </body>
 </html>
