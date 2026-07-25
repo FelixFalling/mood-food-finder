@@ -9,7 +9,11 @@ just tap buttons. Powered by Gemini with the Google Maps grounding tool.
    ```
    GEMINI_API_KEY=your-key-here
    ```
-2. Install deps (uses [uv](https://docs.astral.sh/uv/)):
+2. Put your Google map API key in `.env`:
+   ```
+   GOOGLE_API_KEY=your-key-here
+   ```
+3. Install deps (uses [uv](https://docs.astral.sh/uv/)):
    ```
    uv sync
    ```

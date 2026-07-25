@@ -6,98 +6,150 @@
   <title>Mood Food Finder</title>
   <style>
     :root {
-      --bg: #14100e;
-      --card: #201a17;
-      --line: #3a2f29;
-      --text: #f3ece6;
-      --muted: #b09a8c;
-      --accent: #ff7a45;
-      --accent-2: #ffb347;
+      --bg: #f1f3f4;
+      --surface: #ffffff;
+      --line: #dadce0;
+      --text: #202124;
+      --muted: #5f6368;
+      --blue: #1a73e8;
+      --blue-dark: #1967d2;
+      --blue-tint: #e8f0fe;
+      --red: #ea4335;
+      --green: #1e8e3e;
+      --green-tint: #e6f4ea;
+      --yellow: #fbbc05;
+      --shadow-1: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15);
+      --shadow-2: 0 1px 2px rgba(60,64,67,.3), 0 8px 24px rgba(60,64,67,.22);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      background: radial-gradient(1200px 600px at 50% -10%, #2a201b 0%, var(--bg) 60%);
+      font-family: 'Google Sans', Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle, #dfe3e6 1px, transparent 1px) 0 0 / 22px 22px,
+        var(--bg);
       color: var(--text);
       min-height: 100vh;
     }
     .wrap {
-      max-width: 640px; margin: 0 auto; padding: 24px 20px 40px;
-      min-height: 100dvh;
+      max-width: 480px; margin: 24px auto;
+      min-height: calc(100dvh - 48px);
+      background: var(--surface);
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: var(--shadow-2);
+      display: flex; flex-direction: column;
+    }
+    #stage { flex: 1; display: flex; flex-direction: column; }
+    .pad {
+      flex: 1; padding: 22px 20px 28px;
       display: flex; flex-direction: column; justify-content: center;
     }
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between;
-      min-height: 34px; margin-bottom: 40px;
+    @media (max-width: 520px) {
+      .wrap { margin: 0; border-radius: 0; min-height: 100dvh; box-shadow: none; }
     }
-    .dots { display: flex; gap: 8px; }
-    .dot {
-      width: 8px; height: 8px; border-radius: 999px;
-      background: var(--line); transition: background 0.2s;
-    }
-    .dot.on { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+
+    .topbar { display: flex; align-items: center; gap: 14px; min-height: 24px; margin-bottom: 36px; }
+    .progress { display: flex; gap: 6px; flex: 1; }
+    .seg { flex: 1; height: 4px; border-radius: 999px; background: var(--line); transition: background 0.2s; }
+    .seg.on { background: var(--blue); }
     .back {
-      background: none; border: none; padding: 6px 4px;
-      color: var(--muted); font-size: 0.9rem; font-family: inherit; cursor: pointer;
+      background: none; border: none; padding: 4px; margin: -4px;
+      color: var(--muted); font-size: 1.1rem; font-family: inherit; cursor: pointer;
+      line-height: 1;
     }
     .back:hover { color: var(--text); }
     .back[hidden] { display: none; }
 
     h2.q {
-      font-size: 1.9rem; line-height: 1.2; letter-spacing: -0.5px;
-      margin: 0 0 28px; text-align: center;
+      font-size: 1.55rem; line-height: 1.3; letter-spacing: -0.2px; font-weight: 600;
+      margin: 0 0 24px; text-align: center;
     }
     .tiles {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
     }
     .tile {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 6px; min-height: 110px; padding: 14px;
-      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-      color: var(--text); font-family: inherit; font-size: 1.05rem; font-weight: 600;
-      cursor: pointer; transition: border-color 0.15s, transform 0.1s;
+      gap: 6px; min-height: 100px; padding: 14px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+      color: var(--text); font-family: inherit; font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s, background 0.15s, transform 0.1s;
     }
-    .tile:hover, .tile:focus-visible { border-color: var(--accent); outline: none; }
+    .tile:hover, .tile:focus-visible { border-color: var(--blue); box-shadow: var(--shadow-1); outline: none; }
     .tile:active { transform: scale(0.97); }
-    .tile .emoji { font-size: 1.8rem; line-height: 1; }
-    .tile .sub { font-size: 0.8rem; font-weight: 400; color: var(--muted); }
-    .tile.picked {
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      border-color: transparent; color: #1a1310;
-    }
-    .tile.picked .sub { color: #1a1310; }
+    .tile .emoji { font-size: 1.7rem; line-height: 1; }
+    .tile .sub { font-size: 0.78rem; font-weight: 500; color: var(--muted); }
+    .tile.picked { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .tile.picked .sub { color: var(--blue-tint); }
 
-    .card {
-      background: var(--card); border: 1px solid var(--line);
-      border-radius: 18px; padding: 26px 22px; text-align: center;
+    /* Results: a live map up top plus a Maps-style bottom sheet, so the best
+       pick and its alternates read like pins you're browsing on a real map. */
+    .map-wrap { position: relative; width: 100%; height: 38vh; min-height: 200px; max-height: 320px; background: #e8eaed; }
+    .map-frame { width: 100%; height: 100%; }
+    .map-pill {
+      position: absolute; left: 14px; top: 14px; max-width: calc(100% - 28px);
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface); padding: 6px 14px; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 600; color: var(--text); box-shadow: var(--shadow-1);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .card .name { display: block; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.4px; }
-    .card .maps {
-      display: inline-block; margin-top: 14px;
-      color: var(--accent); text-decoration: none; font-weight: 600;
+    .map-pill .ping { flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--red); }
+
+    .sheet {
+      position: relative; margin-top: -18px;
+      background: var(--surface); border-radius: 20px 20px 0 0;
+      padding: 18px 20px 24px; flex: 1;
+      box-shadow: 0 -2px 10px rgba(60,64,67,.12);
     }
-    .card .maps:hover { text-decoration: underline; }
-    .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+    .handle { width: 36px; height: 4px; border-radius: 999px; background: var(--line); margin: 0 auto 16px; }
+
+    .pick-top { display: flex; align-items: flex-start; gap: 10px; }
+    .pick-top .pin { font-size: 1.5rem; line-height: 1.3; }
+    .pick-title { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .name { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.2px; }
+    .badge {
+      align-self: flex-start; background: var(--green-tint); color: var(--green);
+      font-size: 0.7rem; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .blurb { color: var(--muted); font-size: 0.92rem; line-height: 1.55; margin: 10px 0 0; white-space: pre-wrap; text-align: left; }
+
+    .actions { display: flex; gap: 10px; margin-top: 18px; }
     .btn {
-      padding: 15px; border: none; border-radius: 14px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: #1a1310; font-family: inherit; font-size: 1.05rem; font-weight: 700;
-      cursor: pointer; transition: transform 0.1s;
+      flex: 1; text-align: center; padding: 12px; border: none; border-radius: 999px;
+      background: var(--blue); color: #fff; font-family: inherit; font-weight: 600; font-size: 0.95rem;
+      text-decoration: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+      gap: 6px; transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
     }
-    .btn:hover { transform: translateY(-1px); }
-    .btn.ghost {
-      background: none; border: 1px solid var(--line);
-      color: var(--muted); font-weight: 600;
-    }
-    .btn.ghost:hover { border-color: var(--accent); color: var(--text); }
+    .btn:hover { background: var(--blue-dark); box-shadow: var(--shadow-1); }
+    .btn:active { transform: scale(0.98); }
+    .btn.ghost { background: var(--surface); color: var(--blue); border: 1px solid var(--line); }
+    .btn.ghost:hover { background: #f8f9fa; box-shadow: none; }
 
-    .blurb { color: var(--muted); white-space: pre-wrap; line-height: 1.6; margin: 14px 0 0; text-align: left; }
-    .status { text-align: center; color: var(--muted); padding: 20px; }
-    .err { color: #ff8f7a; }
-    .loc { text-align: center; font-size: 0.82rem; color: var(--muted); margin-top: 28px; }
+    .alt-label {
+      font-size: 0.75rem; font-weight: 700; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.4px; margin: 22px 0 10px;
+    }
+    .alt-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+    .alt-row::-webkit-scrollbar { display: none; }
+    .alt-card {
+      flex: 0 0 auto; max-width: 200px; display: flex; align-items: center; gap: 8px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+      padding: 10px 14px; font-family: inherit; font-size: 0.86rem; font-weight: 600;
+      color: var(--text); cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    }
+    .alt-card:hover, .alt-card:focus-visible { border-color: var(--blue); background: var(--blue-tint); outline: none; }
+    .alt-card .alt-pin { color: var(--blue); flex: none; }
+    .alt-card .alt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .status { text-align: center; color: var(--muted); }
+    .err { color: var(--red); }
+    .loc {
+      text-align: center; font-size: 0.78rem; color: var(--muted); margin-top: 26px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(8px); }
@@ -113,9 +165,15 @@
 <body>
   <div class="wrap">
     <div id="stage"></div>
-    <div class="loc" id="loc">📍 Using your current location</div>
   </div>
 
+  <script>
+    // Google bootstrap
+    (g => {var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+      key: "{{ maps_api_key }}",
+      v: "weekly",
+    });
+  </script>
   <script>
     const STEPS = [
       { key: 'mood', title: "What's the mood?", options: [
@@ -152,33 +210,47 @@
         ] },
     ];
 
+    // Falls back to downtown LA — mirrors the server's default in app.py.
+    const DEFAULT_LAT = 34.050481;
+    const DEFAULT_LON = -118.248526;
+
     const selections = {};
     let coords = { latitude: null, longitude: null };
     let step = 0;
     let places = [];
     let pickIndex = 0;
     let blurb = '';
+    let locText = '📍 Using your current location';
+
+    let map = null;
+    let markersByIndex = {};
 
     const stage = document.getElementById('stage');
-    const locEl = document.getElementById('loc');
 
-    // Grab geolocation up front (falls back to server default if denied).
+    // Grab geolocation. If fail, use the default.
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           coords.latitude = pos.coords.latitude;
           coords.longitude = pos.coords.longitude;
-          locEl.textContent = '📍 Using your current location';
+          locText = '📍 Using your current location';
+          updateLoc();
         },
         () => {
-          locEl.textContent = '📍 Location off — using a default area';
+          locText = '📍 Location off — using a default area';
+          updateLoc();
         }
       );
     }
 
+    function updateLoc() {
+      const el = stage.querySelector('.loc');
+      if (el) el.textContent = locText;
+    }
+
     function renderStep() {
       const s = STEPS[step];
-      const dots = STEPS.map((_, i) => '<div class="dot' + (i <= step ? ' on' : '') + '"></div>').join('');
+      const segs = STEPS.map((_, i) => '<div class="seg' + (i <= step ? ' on' : '') + '"></div>').join('');
       const tiles = s.options.map((o, i) =>
         '<button class="tile" data-i="' + i + '">' +
           (o.emoji ? '<span class="emoji">' + o.emoji + '</span>' : '') +
@@ -187,12 +259,14 @@
       ).join('');
 
       stage.innerHTML =
-        '<div class="topbar"><div class="dots">' + dots + '</div>' +
-        '<button class="back"' + (step === 0 ? ' hidden' : '') + '>← Back</button></div>' +
+        '<div class="pad">' +
+        '<div class="topbar"><button class="back"' + (step === 0 ? ' hidden' : '') + '>←</button>' +
+        '<div class="progress">' + segs + '</div></div>' +
         '<h2 class="q">' + escapeHtml(s.title) + '</h2>' +
-        '<div class="tiles">' + tiles + '</div>';
+        '<div class="tiles">' + tiles + '</div>' +
+        '<div class="loc">' + escapeHtml(locText) + '</div>' +
+        '</div>';
       restage();
-      locEl.hidden = false;
 
       const back = stage.querySelector('.back');
       if (back) back.addEventListener('click', goBack);
@@ -240,9 +314,8 @@
     });
 
     async function submit() {
-      stage.innerHTML = '<div class="status">Sniffing out the best spots… 🍜</div>';
+      stage.innerHTML = '<div class="pad"><div class="status">Sniffing out the best spots… 🍜</div></div>';
       restage();
-      locEl.hidden = true;
 
       try {
         const res = await fetch('/api/recommend', {
@@ -260,48 +333,164 @@
         places = data.places || [];
         blurb = data.text || '';
         pickIndex = 0;
+        map = null;
+        markersByIndex = {};
 
         if (!places.length && !blurb) {
           showMessage('No matches — try a different combo.');
         } else {
-          renderPick();
+          renderResults();
         }
       } catch (e) {
         showMessage('Something went wrong. Is the server running?', true);
       }
     }
 
-    function renderPick() {
-      const p = places[pickIndex];
-      // Per-place copy only — `blurb` names every option, which would defeat the one-at-a-time point.
-      const copy = p ? p.reason : blurb;
-      let html = '<div class="card">';
-      if (p) html += '<span class="name">' + escapeHtml(p.name) + '</span>';
-      if (copy) html += '<p class="blurb">' + escapeHtml(copy) + '</p>';
-      html += '<a class="maps" target="_blank" rel="noopener">Open in Maps ›</a></div>';
-      html += '<div class="actions">';
-      if (places.length > 1) html += '<button class="btn" id="another">Show me another →</button>';
-      html += '<button class="btn ghost" id="restart">Start over</button></div>';
+    // Draws the map + bottom-sheet shell once, then loads the live map async
+    // so the sheet (top pick + alternates) is usable even if maps can't load.
+    function renderResults() {
+      const hasMap = places.some((p) => p.place_id);
+      let html = '';
+      if (hasMap) {
+        html += '<div class="map-wrap"><div id="map" class="map-frame"></div>' +
+          '<div class="map-pill"><span class="ping"></span><span id="mapPillText">Loading map…</span></div></div>';
+      }
+      html += '<div class="sheet"><div class="handle"></div><div id="sheetBody"></div></div>';
 
       stage.innerHTML = html;
       restage();
+      renderSheet();
+
+      if (hasMap) {
+        setupMap().catch(() => {
+          const pillText = document.getElementById('mapPillText');
+          if (pillText) pillText.textContent = 'Map unavailable';
+        });
+      }
+    }
+
+    async function setupMap() {
+      const { Map } = await google.maps.importLibrary('maps');
+      await google.maps.importLibrary('marker');
+      const { Place } = await google.maps.importLibrary('places');
+
+      const mapEl = document.getElementById('map');
+      if (!mapEl) return; // user already navigated away
+
+      map = new Map(mapEl, {
+        center: { lat: coords.latitude || DEFAULT_LAT, lng: coords.longitude || DEFAULT_LON },
+        zoom: 14,
+        disableDefaultUI: true,
+        zoomControl: true,
+        gestureHandling: 'greedy',
+      });
+
+      const bounds = new google.maps.LatLngBounds();
+      markersByIndex = {};
+
+      for (let i = 0; i < places.length; i++) {
+        const p = places[i];
+        if (!p.place_id) continue;
+        try {
+          const place = new Place({ id: p.place_id.replace(/^places\//, '') });
+          await place.fetchFields({ fields: ['location'] });
+          if (!place.location) continue;
+          const marker = new google.maps.Marker({
+            position: place.location,
+            map,
+            title: p.name,
+            icon: markerIcon(i === pickIndex),
+            zIndex: i === pickIndex ? 999 : 1,
+          });
+          marker.addListener('click', () => selectPlace(i));
+          markersByIndex[i] = { marker, location: place.location };
+          bounds.extend(place.location);
+        } catch (e) {
+          // Skip a place we can't locate rather than failing the whole map.
+        }
+      }
+
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, 60);
+        if (Object.keys(markersByIndex).length === 1) map.setZoom(15);
+      }
+
+      const pillText = document.getElementById('mapPillText');
+      if (pillText) pillText.textContent = places[pickIndex] ? places[pickIndex].name : 'Map';
+    }
+
+    function markerIcon(isTop) {
+      return { url: 'https://maps.google.com/mapfiles/ms/icons/' + (isTop ? 'red-dot.png' : 'blue-dot.png') };
+    }
+
+    function selectPlace(i) {
+      pickIndex = i;
+      Object.entries(markersByIndex).forEach(([idx, entry]) => {
+        const isTop = Number(idx) === i;
+        entry.marker.setIcon(markerIcon(isTop));
+        entry.marker.setZIndex(isTop ? 999 : 1);
+      });
+      const entry = markersByIndex[i];
+      if (entry && map) map.panTo(entry.location);
+      const pillText = document.getElementById('mapPillText');
+      if (pillText) pillText.textContent = places[i].name;
+      renderSheet();
+    }
+
+    // Rewrites just the bottom sheet (top pick + alternates) without touching
+    // the map, so switching picks doesn't reload/re-fetch markers.
+    function renderSheet() {
+      const body = document.getElementById('sheetBody');
+      if (!body) return;
+
+      const p = places[pickIndex];
+      const alts = places
+        .map((place, i) => ({ place, i }))
+        .filter(({ i }) => i !== pickIndex)
+        .slice(0, 3);
+
+      let html = '';
+      if (p) {
+        const copy = p.reason || blurb;
+        html += '<div class="pick-top"><span class="pin">📍</span>' +
+          '<div class="pick-title"><span class="name">' + escapeHtml(p.name) + '</span>' +
+          '<span class="badge">Top pick</span></div></div>';
+        if (copy) html += '<p class="blurb">' + escapeHtml(copy) + '</p>';
+        html += '<div class="actions"><a class="btn" id="directions" target="_blank" rel="noopener">Directions</a>' +
+          '<button class="btn ghost" id="restart">Start over</button></div>';
+      } else {
+        if (blurb) html += '<p class="blurb">' + escapeHtml(blurb) + '</p>';
+        html += '<div class="actions"><button class="btn ghost" id="restart">Start over</button></div>';
+      }
+
+      if (alts.length) {
+        html += '<div class="alt-label">Other options nearby</div><div class="alt-row">';
+        alts.forEach(({ place, i }) => {
+          html += '<button class="alt-card" data-i="' + i + '"><span class="alt-pin">📍</span>' +
+            '<span class="alt-name">' + escapeHtml(place.name) + '</span></button>';
+        });
+        html += '</div>';
+      }
+
+      body.innerHTML = html;
 
       // Set href via the DOM so a hostile URL can't break out of the attribute.
-      const maps = stage.querySelector('.maps');
-      if (p && p.url) maps.href = p.url;
-      else maps.remove();
+      const directions = document.getElementById('directions');
+      if (directions) {
+        if (p && p.url) directions.href = p.url;
+        else directions.remove();
+      }
 
-      const another = document.getElementById('another');
-      if (another) another.addEventListener('click', () => {
-        pickIndex = (pickIndex + 1) % places.length;
-        renderPick();
+      body.querySelectorAll('.alt-card').forEach((btn) => {
+        btn.addEventListener('click', () => selectPlace(Number(btn.dataset.i)));
       });
-      document.getElementById('restart').addEventListener('click', restart);
+      const restartBtn = document.getElementById('restart');
+      if (restartBtn) restartBtn.addEventListener('click', restart);
     }
 
     function showMessage(msg, isErr) {
-      stage.innerHTML = '<div class="status' + (isErr ? ' err' : '') + '">' + escapeHtml(msg) + '</div>' +
-        '<div class="actions"><button class="btn" id="restart">Start over</button></div>';
+      stage.innerHTML = '<div class="pad"><div class="status' + (isErr ? ' err' : '') + '">' + escapeHtml(msg) + '</div>' +
+        '<div class="actions"><button class="btn" id="restart">Start over</button></div></div>';
       restage();
       document.getElementById('restart').addEventListener('click', restart);
     }
@@ -311,6 +500,8 @@
       places = [];
       blurb = '';
       pickIndex = 0;
+      map = null;
+      markersByIndex = {};
       step = 0;
       renderStep();
     }
