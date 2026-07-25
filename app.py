@@ -23,6 +23,9 @@ client = genai.Client()
 
 MODEL = "gemini-3.6-flash"
 
+# Handed to the template so the Maps JavaScript API can draw the results map.
+GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+
 # Default location if the browser won't share geolocation (downtown LA, from the docs example).
 DEFAULT_LAT = 34.050481
 DEFAULT_LON = -118.248526
@@ -182,7 +185,7 @@ def next_stage(session):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", maps_api_key=GOOGLE_MAPS_API_KEY)
 
 
 @app.route("/api/start", methods=["POST"])

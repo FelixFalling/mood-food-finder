@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mood-food-finder",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "python", "app.py"],
+      "port": 5001
+    }
+  ]
+}

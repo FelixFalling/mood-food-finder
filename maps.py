@@ -99,6 +99,10 @@ def survey(lat, lon):
         places[pid] = {
             "id": pid,
             "name": (p.get("displayName") or {}).get("text", "Unknown"),
+            # The survey already knows where each place is, so the map can drop a marker
+            # without the browser re-fetching every location through the Places library.
+            "lat": loc["latitude"],
+            "lng": loc["longitude"],
             "metres": round(metres),
             "walk": max(1, round(metres / METRES_PER_MINUTE)),
             "price": PRICE_LABELS.get(p.get("priceLevel")),
