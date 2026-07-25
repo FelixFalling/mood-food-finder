@@ -202,6 +202,8 @@
 
     let map = null;
     let markersByIndex = {};
+    let mode = 'WALK';        // how they're getting there; set by the first question
+    const VERBS = { WALK: 'walk', TRANSIT: 'ride', DRIVE: 'drive' };
     let origin = null;        // where the search started from
     let originMarker = null;
     let routeLine = null;     // walking path to the selected place
@@ -254,7 +256,6 @@
         if (data.error) return showMessage(data.error, true);
         session = data.session;
         origin = data.origin || null;
-        locText += ' · ' + data.found + ' places nearby';
         handle(data);
       } catch (e) {
         showMessage('Something went wrong. Is the server running?', true);
@@ -264,6 +265,8 @@
     function handle(data) {
       asked = data.asked || 0;
       if (data.max_questions) maxQuestions = data.max_questions;
+      if (data.mode) mode = data.mode;
+      if (data.found) locText = '📍 ' + data.found + ' places within reach';
       if (data.done) {
         places = data.places || [];
         pickIndex = 0;
@@ -284,7 +287,9 @@
         '<button class="tile" data-i="' + i + '">' +
           (o.emoji ? '<span class="emoji">' + escapeHtml(o.emoji) + '</span>' : '') +
           '<span>' + escapeHtml(o.label) + '</span>' +
-          (o.sub && o.sub !== o.label ? '<span class="sub">' + escapeHtml(o.sub) + '</span>' : '') +
+          // Case-insensitive, or "Any distance" prints its own subtitle back at itself.
+          (o.sub && o.sub.toLowerCase() !== o.label.toLowerCase()
+            ? '<span class="sub">' + escapeHtml(o.sub) + '</span>' : '') +
         '</button>'
       ).join('');
 
@@ -475,9 +480,10 @@
 
     function metaChips(p) {
       const bits = [];
-      // Prefer the real walking-route time over the straight-line estimate.
-      if (p.route_minutes) bits.push(p.route_minutes + ' min walk');
-      else if (p.walk) bits.push(p.walk + ' min walk');
+      const verb = VERBS[mode] || 'walk';
+      // Prefer the real routed time over the straight-line estimate.
+      if (p.route_minutes) bits.push(p.route_minutes + ' min ' + verb);
+      else if (p.minutes) bits.push(p.minutes + ' min ' + verb);
       if (p.price) bits.push(p.price);
       if (p.rating) bits.push('★ ' + p.rating + (p.reviews ? ' (' + p.reviews + ')' : ''));
       if (p.kind) bits.push(p.kind);
@@ -519,7 +525,7 @@
         alts.forEach(({ place, i }) => {
           html += '<button class="alt-card" data-i="' + i + '"><span class="alt-pin">📍</span>' +
             '<span class="alt-name">' + escapeHtml(place.name) + '</span>' +
-            (place.walk ? '<span class="alt-meta">' + place.walk + 'm</span>' : '') +
+            (place.minutes ? '<span class="alt-meta">' + place.minutes + ' min</span>' : '') +
             '</button>';
         });
         html += '</div>';

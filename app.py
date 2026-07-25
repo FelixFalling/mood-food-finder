@@ -85,8 +85,8 @@ def compose_question(available, answers, remaining):
     that has no places behind it.
     """
     menu = "\n".join(
-        f"- {key}: options = {[o['hint'] for o in opts]} (each has "
-        f"{[o['count'] for o in opts]} places)"
+        f"- {key}: options = {[o['hint'] for o in opts]}"
+        + (f" (each has {[o['count'] for o in opts]} places)" if opts[0].get("count") else "")
         for key, opts in available.items()
     )
     prompt = (
@@ -122,20 +122,23 @@ def compose_question(available, answers, remaining):
     return {"key": key, "title": title, "options": tiles}
 
 
-def choose_best(candidates, answers):
+def choose_best(candidates, answers, mode):
     """Rank the survivors and say why, grounded in the real place data."""
+    verb = maps.mode_config(mode)["verb"]
     menu = "\n".join(
         f"- id={p['id']} | {p['name']} | {p['kind'] or 'eatery'} | {p['price'] or 'price n/a'} | "
-        f"{p['walk']} min walk | rating {p['rating'] or 'n/a'} ({p['reviews']} reviews)"
+        f"{p['minutes']} min {verb} | rating {p['rating'] or 'n/a'} ({p['reviews']} reviews)"
         f"{' | ' + p['summary'] if p['summary'] else ''}"
         for p in candidates
     )
     prompt = (
         "Pick the best restaurants for someone whose quiz answers were: "
         f"{describe(answers)}.\n\nCandidates:\n{menu}\n\n"
-        "Rank them best first. For each, give its exact place_id and one warm sentence on "
-        "why it fits their answers. Reference concrete details (walk time, price, rating, "
-        "cuisine). Never invent a place that is not listed."
+        f"They are travelling by {verb}. Rank them best first. For each, give its exact "
+        "place_id and one warm sentence on why it fits their answers. Reference concrete "
+        "details (price, rating, cuisine). Do NOT state a travel time or distance — the "
+        "card shows the real routed time and your estimate would contradict it. Never "
+        "invent a place that is not listed."
     )
 
     reply = ask_model(prompt, Picks)
@@ -165,16 +168,31 @@ def with_photos(ranked):
     return ranked
 
 
+def mode_question(lat, lon):
+    """How are you getting there? Asked before anything else, because the answer sets
+    the search radius — half an hour of driving reaches far more than half an hour on foot.
+
+    Transit is only offered where it actually runs; see maps.transit_available.
+    """
+    options = [{"value": "WALK", "hint": "on foot"}]
+    if maps.transit_available(lat, lon):
+        options.append({"value": "TRANSIT", "hint": "public transit"})
+    options.append({"value": "DRIVE", "hint": "driving"})
+    return compose_question({"mode": options}, {}, 0)
+
+
 def next_stage(session):
     """Either the next question, or the final results when narrowing is done."""
     candidates = session["candidates"]
-    available = quiz.dimensions(candidates, session["asked"])
+    mode = session["mode"]
+    available = quiz.dimensions(candidates, session["asked"], mode)
 
-    # Distance leads. It's the filter that cuts the field hardest and the one the user
-    # can answer without thinking, so the model doesn't get to pick something else first.
-    # In a sparse area `walk` won't be offered at all, and then anything else will do.
-    if not session["asked"] and "walk" in available:
-        available = {"walk": available["walk"]}
+    # Distance leads, right after the travel mode that gives it meaning. It's the filter
+    # that cuts the field hardest and the one the user can answer without thinking, so the
+    # model doesn't get to pick something else first. In a sparse area `distance` won't be
+    # offered at all, and then anything else will do.
+    if session["asked"] == ["mode"] and "distance" in available:
+        available = {"distance": available["distance"]}
 
     done = (
         len(candidates) <= ENOUGH_CANDIDATES
@@ -182,7 +200,7 @@ def next_stage(session):
         or len(session["asked"]) >= MAX_QUESTIONS
     )
     if done:
-        ranked = choose_best(candidates, session["answers"])
+        ranked = choose_best(candidates, session["answers"], mode)
         return {
             "done": True,
             "places": with_photos(ranked),
@@ -210,29 +228,28 @@ def start():
     lat = float(data.get("latitude") or DEFAULT_LAT)
     lon = float(data.get("longitude") or DEFAULT_LON)
 
-    try:
-        candidates = maps.survey(lat, lon)
-    except maps.MapsError as exc:
-        return jsonify({"error": str(exc)}), 502
-
-    if not candidates:
-        return jsonify({"error": "No restaurants found anywhere near you."}), 200
-
+    # No survey yet — how they're travelling decides how wide to search.
     sid = uuid.uuid4().hex
     SESSIONS[sid] = {
-        "candidates": candidates,
+        "candidates": [],
         "answers": {},
         "asked": [],
-        "all": candidates,
+        "all": [],
+        "mode": maps.DEFAULT_MODE,
         "origin": {"lat": lat, "lng": lon},
         "routes": {},
     }
 
-    payload = next_stage(SESSIONS[sid])
-    payload["session"] = sid
-    payload["found"] = len(candidates)
-    payload["origin"] = SESSIONS[sid]["origin"]
-    return jsonify(payload)
+    return jsonify(
+        {
+            "done": False,
+            "question": mode_question(lat, lon),
+            "asked": 0,
+            "max_questions": MAX_QUESTIONS + 1,  # the mode question counts too
+            "session": sid,
+            "origin": SESSIONS[sid]["origin"],
+        }
+    )
 
 
 @app.route("/api/answer", methods=["POST"])
@@ -243,20 +260,39 @@ def answer():
         return jsonify({"error": "Session expired — start over."}), 404
 
     key, value = data.get("key"), data.get("value")
-    narrowed = quiz.apply(session["candidates"], key, value)
 
-    # Never let an answer empty the board; if it somehow would, keep the wider set.
-    if narrowed:
-        session["candidates"] = narrowed
+    # The travel mode isn't a filter — it decides how far afield to look, so the survey
+    # only happens once we know it.
+    if key == "mode":
+        session["mode"] = value if value in maps.MODES else maps.DEFAULT_MODE
+        try:
+            candidates = maps.survey(
+                session["origin"]["lat"], session["origin"]["lng"], session["mode"]
+            )
+        except maps.MapsError as exc:
+            return jsonify({"error": str(exc)}), 502
+        if not candidates:
+            return jsonify({"error": "No restaurants found anywhere near you."}), 200
+        session["candidates"] = candidates
+        session["all"] = candidates
+    else:
+        narrowed = quiz.apply(session["candidates"], key, value)
+        # Never let an answer empty the board; if it somehow would, keep the wider set.
+        if narrowed:
+            session["candidates"] = narrowed
+
     session["answers"][key] = value
     session["asked"].append(key)
 
-    return jsonify(next_stage(session))
+    payload = next_stage(session)
+    payload["found"] = len(session["all"])
+    payload["mode"] = session["mode"]
+    return jsonify(payload)
 
 
 @app.route("/api/route", methods=["POST"])
 def route():
-    """The walking path from where the user started to one place."""
+    """The path from where the user started to one place, in their chosen travel mode."""
     data = request.get_json(force=True) or {}
     session = SESSIONS.get(data.get("session"))
     if not session:
@@ -273,7 +309,9 @@ def route():
 
     origin = session["origin"]
     try:
-        leg = maps.walk_route(origin["lat"], origin["lng"], place["lat"], place["lng"])
+        leg = maps.travel_route(
+            origin["lat"], origin["lng"], place["lat"], place["lng"], session["mode"]
+        )
     except maps.MapsError as exc:
         return jsonify({"error": str(exc)}), 502
 

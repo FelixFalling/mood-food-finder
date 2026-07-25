@@ -7,7 +7,8 @@ nearest kitchen is a 12 minute walk away.
 
 from collections import Counter
 
-WALK_LADDER = [5, 10, 15, 20, 30]
+import maps
+
 PRICE_ORDER = ["$", "$$", "$$$", "$$$$"]
 WELL_RATED = 4.3
 
@@ -20,8 +21,8 @@ def matches(place, key, value):
     """Does one place survive this answer? `any` always passes."""
     if value == "any":
         return True
-    if key == "walk":
-        return place["walk"] <= int(value)
+    if key == "distance":
+        return place["minutes"] <= int(value)
     if key == "price":
         return place["price"] == value
     if key == "cuisine":
@@ -37,18 +38,25 @@ def apply(candidates, key, value):
     return [p for p in candidates if matches(p, key, value)]
 
 
-def _walk_options(candidates):
+def _distance_options(candidates, mode):
+    """Travel-time thresholds worth offering, on the ladder that suits the mode.
+
+    Half an hour means something different on foot than behind the wheel, so the
+    thresholds and their wording both come from the mode.
+    """
+    cfg = maps.mode_config(mode)
+    verb = cfg["verb"]
     total = len(candidates)
     options = []
     seen_counts = set()
-    for minutes in WALK_LADDER:
-        count = sum(1 for p in candidates if p["walk"] <= minutes)
+    for minutes in cfg["ladder"]:
+        count = sum(1 for p in candidates if p["minutes"] <= minutes)
         # Skip a threshold that is empty, that covers everything (asks nothing), or that
         # captures exactly the same places as a tighter one already offered.
         if count == 0 or count == total or count in seen_counts:
             continue
         seen_counts.add(count)
-        options.append({"value": str(minutes), "count": count, "hint": f"{minutes} min walk"})
+        options.append({"value": str(minutes), "count": count, "hint": f"{minutes} min {verb}"})
     if options:
         options.append({"value": "any", "count": total, "hint": "any distance"})
     return options
@@ -77,13 +85,13 @@ def _split_options(candidates, key, hint):
     ]
 
 
-def dimensions(candidates, asked):
+def dimensions(candidates, asked, mode=maps.DEFAULT_MODE):
     """Every question still worth asking, with only the options that have results.
 
     A dimension needs at least two live options or it isn't a choice at all.
     """
     built = {
-        "walk": _walk_options(candidates),
+        "distance": _distance_options(candidates, mode),
         "price": _tally_options(candidates, "price", "price", order=PRICE_ORDER),
         "cuisine": _tally_options(
             candidates, "cuisine", "kind", minimum=MIN_PER_CUISINE, limit=MAX_CUISINES

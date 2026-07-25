@@ -32,12 +32,64 @@ FIELDS = ",".join(
 ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 PHOTO_WIDTH = 800
 
-# Comfortable walking pace. Used to turn metres into the "X minute walk" the quiz asks about.
-METRES_PER_MINUTE = 80
+# How people actually get to dinner. Each mode has its own pace, its own sensible set of
+# travel times to offer, and therefore its own search radius — half an hour of driving
+# reaches a different city than half an hour of walking.
+# Streets don't run in straight lines. Real paths through a grid are reliably about a
+# third longer than the crow-flies distance we measure, so scale before estimating time —
+# without this every mode reads optimistic, and the longer the trip the worse it gets.
+CIRCUITY = 1.3
 
-# The widest question the quiz will ever ask is a 30 minute walk.
-MAX_WALK_MINUTES = 30
-SEARCH_RADIUS_M = MAX_WALK_MINUTES * METRES_PER_MINUTE
+# `overhead_minutes` is the fixed cost before you cover any ground — waiting for a bus,
+# walking to the stop. Without it, short transit trips read as far quicker than they are.
+# Speeds are fitted against real Routes results rather than guessed, because an optimistic
+# estimate would have the quiz offer a "20 min ride" for a trip that takes an hour — the
+# exact failure this project exists to avoid.
+MODES = {
+    "WALK": {
+        "verb": "walk",
+        "metres_per_minute": 70,
+        "overhead_minutes": 0,
+        "ladder": [5, 10, 15, 20, 30],
+    },
+    "TRANSIT": {
+        "verb": "ride",
+        "metres_per_minute": 160,
+        "overhead_minutes": 8,
+        "ladder": [10, 20, 30, 45],
+    },
+    "DRIVE": {
+        "verb": "drive",
+        # City driving, not motorway — parking and lights eat the difference.
+        "metres_per_minute": 650,
+        "overhead_minutes": 0,
+        "ladder": [10, 15, 20, 30],
+    },
+}
+DEFAULT_MODE = "WALK"
+
+# Places caps the search radius, and a huge one returns landmarks rather than dinner.
+MAX_RADIUS_M = 50000
+
+
+def mode_config(mode):
+    return MODES.get(mode, MODES[DEFAULT_MODE])
+
+
+def travel_minutes(metres, mode):
+    """Estimated door-to-door time for a straight-line distance, in the given mode."""
+    cfg = mode_config(mode)
+    travelled = metres * CIRCUITY
+    return max(1, round(cfg["overhead_minutes"] + travelled / cfg["metres_per_minute"]))
+
+
+def search_radius(mode):
+    """How far out to search: the crow-flies radius the widest question can still reach."""
+    cfg = mode_config(mode)
+    moving = max(cfg["ladder"]) - cfg["overhead_minutes"]
+    reachable = moving * cfg["metres_per_minute"] / CIRCUITY
+    return min(MAX_RADIUS_M, max(round(reachable), 1000))
+
 
 PRICE_LABELS = {
     "PRICE_LEVEL_FREE": "$",
@@ -62,12 +114,12 @@ def haversine_m(lat1, lon1, lat2, lon2):
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def _search(lat, lon, included_types, key):
+def _search(lat, lon, included_types, key, radius):
     body = {
         "includedTypes": included_types,
         "maxResultCount": 20,  # hard ceiling in the Places API
         "locationRestriction": {
-            "circle": {"center": {"latitude": lat, "longitude": lon}, "radius": SEARCH_RADIUS_M}
+            "circle": {"center": {"latitude": lat, "longitude": lon}, "radius": radius}
         },
     }
     resp = requests.post(
@@ -81,17 +133,19 @@ def _search(lat, lon, included_types, key):
     return resp.json().get("places", [])
 
 
-def survey(lat, lon):
-    """Return nearby eateries, nearest first, annotated with walk time.
+def survey(lat, lon, mode=DEFAULT_MODE):
+    """Return nearby eateries, nearest first, annotated with travel time for `mode`.
 
     Two searches because the API caps each at 20 results and cafes would otherwise be
-    crowded out by restaurants entirely.
+    crowded out by restaurants entirely. The radius follows the mode, so choosing to
+    drive genuinely widens the net rather than just relabelling the same walkable spots.
     """
     key = os.environ.get("GOOGLE_MAPS_API_KEY")
     if not key:
         raise MapsError("GOOGLE_MAPS_API_KEY is not set")
 
-    raw = _search(lat, lon, ["restaurant"], key) + _search(lat, lon, ["cafe"], key)
+    radius = search_radius(mode)
+    raw = _search(lat, lon, ["restaurant"], key, radius) + _search(lat, lon, ["cafe"], key, radius)
 
     places = {}
     for p in raw:
@@ -108,7 +162,9 @@ def survey(lat, lon):
             "lat": loc["latitude"],
             "lng": loc["longitude"],
             "metres": round(metres),
-            "walk": max(1, round(metres / METRES_PER_MINUTE)),
+            # Straight-line estimate for the chosen mode. The selected place gets a real
+            # routed time later; routing all of these up front would be one call each.
+            "minutes": travel_minutes(metres, mode),
             "price": PRICE_LABELS.get(p.get("priceLevel")),
             "rating": p.get("rating"),
             "reviews": p.get("userRatingCount") or 0,
@@ -146,16 +202,12 @@ def photo_url(photo_ref):
         return None
 
 
-def walk_route(from_lat, from_lon, to_lat, to_lon):
-    """The actual walking path between two points, as an encoded polyline."""
-    key = os.environ.get("GOOGLE_MAPS_API_KEY")
-    if not key:
-        raise MapsError("GOOGLE_MAPS_API_KEY is not set")
-
+def _compute_route(from_lat, from_lon, to_lat, to_lon, mode, key, timeout=15):
+    """Raw Routes call. Returns the parsed first route, or None if there isn't one."""
     body = {
         "origin": {"location": {"latLng": {"latitude": from_lat, "longitude": from_lon}}},
         "destination": {"location": {"latLng": {"latitude": to_lat, "longitude": to_lon}}},
-        "travelMode": "WALK",
+        "travelMode": mode if mode in MODES else DEFAULT_MODE,
     }
     resp = requests.post(
         ROUTES_URL,
@@ -164,7 +216,7 @@ def walk_route(from_lat, from_lon, to_lat, to_lon):
             "X-Goog-Api-Key": key,
             "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
         },
-        timeout=15,
+        timeout=timeout,
     )
     if resp.status_code != 200:
         raise MapsError(f"Routes API {resp.status_code}: {resp.text[:200]}")
@@ -179,3 +231,35 @@ def walk_route(from_lat, from_lon, to_lat, to_lon):
         "metres": route.get("distanceMeters"),
         "minutes": max(1, round(seconds / 60)),
     }
+
+
+def travel_route(from_lat, from_lon, to_lat, to_lon, mode=DEFAULT_MODE):
+    """The real path between two points for the chosen mode, as an encoded polyline."""
+    key = os.environ.get("GOOGLE_MAPS_API_KEY")
+    if not key:
+        raise MapsError("GOOGLE_MAPS_API_KEY is not set")
+    return _compute_route(from_lat, from_lon, to_lat, to_lon, mode, key)
+
+
+# Far enough that any real transit network would be used to cover it, close enough that
+# somewhere served by buses will still return a route.
+TRANSIT_PROBE_M = 4000
+
+
+def transit_available(lat, lon):
+    """Does public transit actually serve this area?
+
+    Asks the Routes API for a transit trip to a point a few km away. No route back means
+    no usable network here, so the quiz shouldn't offer transit as a way to get to dinner.
+    Any failure is treated as "no" — offering a mode that can't route is worse than
+    omitting one that could have worked.
+    """
+    key = os.environ.get("GOOGLE_MAPS_API_KEY")
+    if not key:
+        return False
+    # ~4 km north; one degree of latitude is roughly 111 km everywhere.
+    probe_lat = lat + (TRANSIT_PROBE_M / 111000)
+    try:
+        return _compute_route(lat, lon, probe_lat, lon, "TRANSIT", key, timeout=12) is not None
+    except (MapsError, requests.RequestException):
+        return False
