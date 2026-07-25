@@ -25,8 +25,12 @@ FIELDS = ",".join(
         "places.googleMapsUri",
         "places.currentOpeningHours.openNow",
         "places.editorialSummary",
+        "places.photos",
     ]
 )
+
+ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
+PHOTO_WIDTH = 800
 
 # Comfortable walking pace. Used to turn metres into the "X minute walk" the quiz asks about.
 METRES_PER_MINUTE = 80
@@ -112,6 +116,66 @@ def survey(lat, lon):
             "url": p.get("googleMapsUri"),
             "open_now": (p.get("currentOpeningHours") or {}).get("openNow"),
             "summary": (p.get("editorialSummary") or {}).get("text"),
+            # Just the resource name here — resolving it to an image costs a call, so
+            # that waits until we know which places actually get shown.
+            "photo_ref": next((ph["name"] for ph in (p.get("photos") or []) if ph.get("name")), None),
         }
 
     return sorted(places.values(), key=lambda p: p["metres"])
+
+
+def photo_url(photo_ref):
+    """Resolve a photo resource name to a directly-loadable image URL.
+
+    `skipHttpRedirect` hands back the googleusercontent link as JSON instead of a 302,
+    so the browser can load the image without ever seeing our API key.
+    """
+    key = os.environ.get("GOOGLE_MAPS_API_KEY")
+    if not key or not photo_ref:
+        return None
+    try:
+        resp = requests.get(
+            f"https://places.googleapis.com/v1/{photo_ref}/media",
+            params={"maxWidthPx": PHOTO_WIDTH, "skipHttpRedirect": "true", "key": key},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+        return resp.json().get("photoUri")
+    except requests.RequestException:
+        return None
+
+
+def walk_route(from_lat, from_lon, to_lat, to_lon):
+    """The actual walking path between two points, as an encoded polyline."""
+    key = os.environ.get("GOOGLE_MAPS_API_KEY")
+    if not key:
+        raise MapsError("GOOGLE_MAPS_API_KEY is not set")
+
+    body = {
+        "origin": {"location": {"latLng": {"latitude": from_lat, "longitude": from_lon}}},
+        "destination": {"location": {"latLng": {"latitude": to_lat, "longitude": to_lon}}},
+        "travelMode": "WALK",
+    }
+    resp = requests.post(
+        ROUTES_URL,
+        json=body,
+        headers={
+            "X-Goog-Api-Key": key,
+            "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline",
+        },
+        timeout=15,
+    )
+    if resp.status_code != 200:
+        raise MapsError(f"Routes API {resp.status_code}: {resp.text[:200]}")
+
+    routes = resp.json().get("routes") or []
+    if not routes:
+        return None
+    route = routes[0]
+    seconds = int(str(route.get("duration", "0s")).rstrip("s") or 0)
+    return {
+        "polyline": (route.get("polyline") or {}).get("encodedPolyline"),
+        "metres": route.get("distanceMeters"),
+        "minutes": max(1, round(seconds / 60)),
+    }

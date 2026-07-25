@@ -7,6 +7,7 @@ candidate list, the quiz can never offer a choice that leads to zero results.
 
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
@@ -150,6 +151,20 @@ def choose_best(candidates, answers):
     return ranked
 
 
+# Resolving a photo is one call each, so only the places the user can actually see get one.
+PHOTOS_SHOWN = 6
+
+
+def with_photos(ranked):
+    """Attach a loadable image URL to the places the results screen will show."""
+    head = ranked[:PHOTOS_SHOWN]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        urls = pool.map(lambda p: maps.photo_url(p.get("photo_ref")), head)
+    for place, url in zip(head, urls):
+        place["photo"] = url
+    return ranked
+
+
 def next_stage(session):
     """Either the next question, or the final results when narrowing is done."""
     candidates = session["candidates"]
@@ -167,9 +182,10 @@ def next_stage(session):
         or len(session["asked"]) >= MAX_QUESTIONS
     )
     if done:
+        ranked = choose_best(candidates, session["answers"])
         return {
             "done": True,
-            "places": choose_best(candidates, session["answers"]),
+            "places": with_photos(ranked),
             "asked": len(session["asked"]),
         }
 
@@ -203,11 +219,19 @@ def start():
         return jsonify({"error": "No restaurants found anywhere near you."}), 200
 
     sid = uuid.uuid4().hex
-    SESSIONS[sid] = {"candidates": candidates, "answers": {}, "asked": [], "all": candidates}
+    SESSIONS[sid] = {
+        "candidates": candidates,
+        "answers": {},
+        "asked": [],
+        "all": candidates,
+        "origin": {"lat": lat, "lng": lon},
+        "routes": {},
+    }
 
     payload = next_stage(SESSIONS[sid])
     payload["session"] = sid
     payload["found"] = len(candidates)
+    payload["origin"] = SESSIONS[sid]["origin"]
     return jsonify(payload)
 
 
@@ -228,6 +252,33 @@ def answer():
     session["asked"].append(key)
 
     return jsonify(next_stage(session))
+
+
+@app.route("/api/route", methods=["POST"])
+def route():
+    """The walking path from where the user started to one place."""
+    data = request.get_json(force=True) or {}
+    session = SESSIONS.get(data.get("session"))
+    if not session:
+        return jsonify({"error": "Session expired — start over."}), 404
+
+    place_id = data.get("place_id")
+    # Each leg is a billed Routes call, so don't pay twice when the user taps back and forth.
+    if place_id in session["routes"]:
+        return jsonify(session["routes"][place_id])
+
+    place = next((p for p in session["all"] if p["id"] == place_id), None)
+    if not place:
+        return jsonify({"error": "Unknown place."}), 404
+
+    origin = session["origin"]
+    try:
+        leg = maps.walk_route(origin["lat"], origin["lng"], place["lat"], place["lng"])
+    except maps.MapsError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+    session["routes"][place_id] = leg or {}
+    return jsonify(leg or {})
 
 
 if __name__ == "__main__":

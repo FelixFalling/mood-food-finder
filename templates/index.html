@@ -160,6 +160,10 @@
       #stage { animation: none; }
       .tile, .btn { transition: none; }
     }
+    .photo {
+      width: 100%; height: 150px; object-fit: cover;
+      border-radius: 14px; margin-top: 14px; display: block; background: #e8eaed;
+    }
     /* Facts pulled straight from the Places survey — walk time, price, rating. */
     .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
     .meta span {
@@ -198,6 +202,9 @@
 
     let map = null;
     let markersByIndex = {};
+    let origin = null;        // where the search started from
+    let originMarker = null;
+    let routeLine = null;     // walking path to the selected place
 
     const stage = document.getElementById('stage');
 
@@ -234,6 +241,8 @@
       pickIndex = 0;
       map = null;
       markersByIndex = {};
+      originMarker = null;
+      routeLine = null;
 
       coords = await locate();
       locText = coords.latitude
@@ -244,6 +253,7 @@
         const data = await post('/api/start', coords);
         if (data.error) return showMessage(data.error, true);
         session = data.session;
+        origin = data.origin || null;
         locText += ' · ' + data.found + ' places nearby';
         handle(data);
       } catch (e) {
@@ -346,6 +356,8 @@
     async function setupMap() {
       const { Map } = await google.maps.importLibrary('maps');
       await google.maps.importLibrary('marker');
+      // `geometry` decodes the encoded polyline the Routes API returns.
+      await google.maps.importLibrary('geometry');
 
       const mapEl = document.getElementById('map');
       if (!mapEl) return; // user already navigated away
@@ -378,8 +390,27 @@
         bounds.extend(position);
       });
 
+      // Where the search started from, drawn as a distinct blue dot rather than a pin
+      // so it never reads as one of the results.
+      const start = origin
+        ? { lat: origin.lat, lng: origin.lng }
+        : { lat: coords.latitude || DEFAULT_LAT, lng: coords.longitude || DEFAULT_LON };
+      originMarker = new google.maps.Marker({
+        position: start,
+        map,
+        title: 'You are here',
+        zIndex: 500,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 7,
+          fillColor: '#1a73e8',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 3,
+        },
+      });
       // Keep the searcher's own position in frame so the walk times make sense.
-      bounds.extend({ lat: coords.latitude || DEFAULT_LAT, lng: coords.longitude || DEFAULT_LON });
+      bounds.extend(start);
 
       if (!bounds.isEmpty()) {
         map.fitBounds(bounds, 60);
@@ -388,6 +419,36 @@
 
       const pillText = document.getElementById('mapPillText');
       if (pillText) pillText.textContent = places[pickIndex] ? places[pickIndex].name : 'Map';
+
+      drawRoute(pickIndex);
+    }
+
+    // Fetches the real walking path for one place and lays it over the map. Failures are
+    // silent on purpose — a missing line shouldn't take the pins down with it.
+    async function drawRoute(i) {
+      const p = places[i];
+      if (!map || !p || !p.id) return;
+
+      try {
+        const leg = await post('/api/route', { session, place_id: p.id });
+        if (!leg || !leg.polyline || places[pickIndex] !== p) return;
+
+        const path = google.maps.geometry.encoding.decodePath(leg.polyline);
+        if (routeLine) routeLine.setMap(null);
+        routeLine = new google.maps.Polyline({
+          path,
+          map,
+          strokeColor: '#1a73e8',
+          strokeOpacity: 0.85,
+          strokeWeight: 5,
+        });
+
+        // The Routes walk time beats our straight-line estimate, so show it once we have it.
+        p.route_minutes = leg.minutes;
+        renderSheet();
+      } catch (e) {
+        // Leave the map as-is.
+      }
     }
 
     function markerIcon(isTop) {
@@ -406,11 +467,17 @@
       const pillText = document.getElementById('mapPillText');
       if (pillText) pillText.textContent = places[i].name;
       renderSheet();
+
+      // Swap the path over to whichever place is now selected.
+      if (routeLine) { routeLine.setMap(null); routeLine = null; }
+      drawRoute(i);
     }
 
     function metaChips(p) {
       const bits = [];
-      if (p.walk) bits.push(p.walk + ' min walk');
+      // Prefer the real walking-route time over the straight-line estimate.
+      if (p.route_minutes) bits.push(p.route_minutes + ' min walk');
+      else if (p.walk) bits.push(p.walk + ' min walk');
       if (p.price) bits.push(p.price);
       if (p.rating) bits.push('★ ' + p.rating + (p.reviews ? ' (' + p.reviews + ')' : ''));
       if (p.kind) bits.push(p.kind);
@@ -439,6 +506,7 @@
         if (chips.length) {
           html += '<div class="meta">' + chips.map((b) => '<span>' + escapeHtml(b) + '</span>').join('') + '</div>';
         }
+        if (p.photo) html += '<img class="photo" id="placePhoto" alt="' + escapeHtml(p.name) + '" />';
         if (p.reason) html += '<p class="blurb">' + escapeHtml(p.reason) + '</p>';
         html += '<div class="actions"><a class="btn" id="directions" target="_blank" rel="noopener">Directions</a>' +
           '<button class="btn ghost" id="restart">Start over</button></div>';
@@ -459,7 +527,13 @@
 
       body.innerHTML = html;
 
-      // Set href via the DOM so a hostile URL can't break out of the attribute.
+      // Set src/href via the DOM so a hostile URL can't break out of the attribute.
+      const photoEl = document.getElementById('placePhoto');
+      if (photoEl && p && p.photo) {
+        photoEl.src = p.photo;
+        photoEl.addEventListener('error', () => photoEl.remove());
+      }
+
       const directions = document.getElementById('directions');
       if (directions) {
         if (p && p.url) directions.href = p.url;
