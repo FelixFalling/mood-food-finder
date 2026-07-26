@@ -4,7 +4,7 @@ Picks somewhere to eat without making you type anything. You tap a few tiles, it
 down real restaurants around you, and shows the winner on a map with the route to get there.
 
 <p align="center">
-  <img src="docs/demo.gif" width="380" alt="Tapping through the quiz: questions narrow the field, then the pick appears on a map with the walking route and a photo" />
+  <img src="docs/demo.gif" width="380" alt="Tapping through the quiz: travel mode, then questions that narrow the field, then the pick on a map with its route and a photo" />
 </p>
 
 The point of the project is that **the quiz is built from reality, not hard-coded**. Before
@@ -12,9 +12,9 @@ it asks anything it looks up what's actually nearby, then only offers options th
 places behind them. If nothing is a 5-minute walk away, it never offers "5 min".
 
 <p align="center">
-  <img src="docs/screenshots/01-question.png" width="30%" alt="Distance question with tiles generated from nearby places" />
-  <img src="docs/screenshots/02-question.png" width="30%" alt="Budget question, narrowed to the price levels that exist" />
-  <img src="docs/screenshots/03-results.png" width="30%" alt="Result on a map with the walking route and a photo" />
+  <img src="docs/screenshots/01-question.png" width="30%" alt="First question: walking, transit or driving" />
+  <img src="docs/screenshots/02-question.png" width="30%" alt="Distance question, with only the thresholds that have places behind them" />
+  <img src="docs/screenshots/03-results.png" width="30%" alt="Result on a map with the route, a photo and nearby alternates" />
 </p>
 
 ## How it works
