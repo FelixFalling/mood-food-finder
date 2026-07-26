@@ -217,3 +217,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .DS_Store
+
+# Source recordings and one-off grabs. The demo lives in the repo as docs/demo.gif;
+# keeping the multi-megabyte originals in git would bloat every clone forever.
+docs/video/
+docs/screenshots/clipboard.png
